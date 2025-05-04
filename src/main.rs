@@ -57,22 +57,15 @@ fn download_img(original_url: &str, output_filename: &str) -> Result<(), ureq::E
 fn main() {
     let cli = Cli::parse();
 
-    let metadata = match get_metadata("https://xkcd.com/info.0.json") {
-        Ok(result) => result,
-        Err(_) => {
-            panic!("Could not retrieve metadata from xkcd website.")
-        }
-    };
+    let metadata = get_metadata("https://xkcd.com/info.0.json")
+        .expect("Could not retrieve metadata from xkcd API.");
 
     let filename = format!(
         "{0}_{1}_{2}_{3}.png",
         metadata.year, metadata.month, metadata.day, metadata.safe_title
     );
 
-    match download_img(&metadata.img, &filename) {
-        Ok(_) => {}
-        Err(_) => panic!("Failed to download image."),
-    }
+    download_img(&metadata.img, &filename).expect("Failed to download image from remote host.");
 
     let mut comic_img = ImageReader::open(&filename)
         .expect("Failed to open image.")
