@@ -1,95 +1,75 @@
-use std::fs::File;
-use std::io::{copy, BufReader};
-
 use clap::Parser;
-use image::imageops::overlay;
-use image::{ImageBuffer, ImageReader};
-use serde::Deserialize;
+use log::{info, warn};
+use xkcd::{download_comic, get_wallpaper_from_img, FgColor, ScreenDimensions};
 
-#[derive(Deserialize)]
-struct XkcdMetadata {
-    safe_title: String,
-    img: String,
-    day: String,
-    month: String,
-    year: String,
+// TODO: Write tests
+/// Parse a colour in “#RRGGBB”
+fn parse_hex_color(s: &str) -> Result<image::Rgba<u8>, String> {
+    let hex = s.trim_start_matches('#');
+    let full = match hex.len() {
+        6 => format!("{hex}FF"),
+        _ => return Err("Hex colour must be 6 hex digits (e.g. #1e90ff)".into()),
+    };
+    let v = u32::from_str_radix(&full, 16).map_err(|_| "Invalid hex digits")?;
+
+    Ok(image::Rgba([
+        ((v >> 24) & 0xFF) as u8, // R
+        ((v >> 16) & 0xFF) as u8, // G
+        ((v >> 8) & 0xFF) as u8,  // B
+        (v & 0xFF) as u8,         // A
+    ]))
 }
+
+// TODO Generic help text
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    #[arg(long)]
+    // Command-line interface to download and create wallpapers based on XKCD comics (xkcd.com).
+    #[arg(long, help = "Width of output wallpaper")]
     width: u32,
-    #[arg(long)]
+    #[arg(long, help = "Height of output wallpaper")]
     height: u32,
-    #[arg(short, default_value_t = 31)]
-    r: u8,
-    #[arg(short, default_value_t = 36)]
-    g: u8,
-    #[arg(short, default_value_t = 31)]
-    b: u8,
-}
-
-fn get_metadata(url: &str) -> Result<XkcdMetadata, ureq::Error> {
-    let recv_body = ureq::get(url)
-        .call()?
-        .body_mut()
-        .read_json::<XkcdMetadata>()?;
-
-    Ok(recv_body)
-}
-
-fn download_img(original_url: &str, output_filename: &str) -> Result<(), ureq::Error> {
-    let scaled_url = original_url.replace(".png", "_2x.png");
-
-    let mut response = match ureq::get(scaled_url).call() {
-        Ok(res) => res,
-        Err(_) => ureq::get(original_url).call()?,
-    };
-
-    let mut reader = BufReader::new(response.body_mut().with_config().reader());
-    let mut file = File::create(output_filename).expect("Failed to create file.");
-    copy(&mut reader, &mut file).expect("Failed to save image.");
-
-    Ok(())
+    #[arg(long, value_parser=parse_hex_color, default_value = "#1F241F", help="Background color in HEX format")]
+    bg: image::Rgba<u8>,
+    #[arg(
+        long,
+        default_value = "light",
+        help = "Foreground color, either dark or light"
+    )] // TODO:
+    // Stronger
+    // constraints
+    fg: String,
+    #[arg(
+        long,
+        help = "Optional comic number, by default the latest xkcd will be used."
+    )]
+    comic: Option<u32>, // TODO: Use this
+    #[arg(short, long, default_value = "./%y-%m-%d_%t.png")]
+    output: String,
 }
 
 fn main() {
+    env_logger::init();
+    info!("parsing CLI arguments");
     let cli = Cli::parse();
 
-    let metadata = get_metadata("https://xkcd.com/info.0.json")
-        .expect("Could not retrieve metadata from xkcd API.");
+    let screen_dimensions = ScreenDimensions {
+        width: cli.width,
+        height: cli.height,
+    };
 
-    let filename = format!(
-        "{0}_{1}_{2}_{3}.png",
-        metadata.year, metadata.month, metadata.day, metadata.safe_title
-    );
+    let fg_color = match cli.fg.as_str() {
+        "dark" => FgColor::Dark,
+        _ => FgColor::Light,
+    };
 
-    download_img(&metadata.img, &filename).expect("Failed to download image from remote host.");
+    info!("starting comic download");
+    let filename = download_comic(cli.comic, &cli.output);
 
-    let mut comic_img = ImageReader::open(&filename)
-        .expect("Failed to open image.")
-        .decode()
-        .expect("Failed to decode img.");
+    info!("converting xkcd image into wallpaper");
+    let wallpaper_buffer = get_wallpaper_from_img(&filename, fg_color, cli.bg, screen_dimensions);
 
-    comic_img.invert();
-    let mut comic_buffer = comic_img.into_rgba8();
-
-    let background_pixel = image::Rgba([cli.r, cli.g, cli.b, 255]);
-
-    for (_x, _y, pixel) in comic_buffer.enumerate_pixels_mut() {
-        if *pixel == image::Rgba([0, 0, 0, 255]) {
-            *pixel = background_pixel
-        }
-    }
-
-    // Place comic in the middle of the background buffer
-    let mut background_buffer = ImageBuffer::from_pixel(cli.width, cli.height, background_pixel);
-    overlay(
-        &mut background_buffer,
-        &comic_buffer,
-        (cli.width / 2 - comic_buffer.width() / 2).into(),
-        (cli.height / 2 - comic_buffer.height() / 2).into(),
-    );
-    let _ = background_buffer.save(filename);
+    info!("saving wallpaper to file {}", filename);
+    let _ = wallpaper_buffer.save(filename);
 }
