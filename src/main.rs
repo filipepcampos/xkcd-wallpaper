@@ -1,8 +1,7 @@
 use clap::Parser;
-use log::{info, warn};
+use log::info;
 use xkcd::{download_comic, get_wallpaper_from_img, FgColor, ScreenDimensions};
 
-// TODO: Write tests
 /// Parse a colour in “#RRGGBB”
 fn parse_hex_color(s: &str) -> Result<image::Rgba<u8>, String> {
     let hex = s.trim_start_matches('#');
@@ -72,4 +71,36 @@ fn main() {
 
     info!("saving wallpaper to file {}", filename);
     let _ = wallpaper_buffer.save(filename);
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_parse_regular() {
+        let hex = "#FF0000";
+        let rgba = image::Rgba([255, 0, 0, 255]);
+        assert_eq!(parse_hex_color(hex), Ok(rgba));
+    }
+
+    #[test]
+    fn hex_parse_missing_hash() {
+        let hex = "FF0000";
+        let rgba = image::Rgba([255, 0, 0, 255]);
+        assert_eq!(parse_hex_color(hex), Ok(rgba));
+    }
+
+    #[test]
+    fn hex_parse_malformed_color() {
+        let hex = "FF00";
+        assert_eq!(parse_hex_color(hex).is_err(), true);
+    }
+
+    #[test]
+    fn hex_parse_invalid_char() {
+        let hex = "ZZ0000";
+        assert_eq!(parse_hex_color(hex).is_err(), true);
+    }
 }
