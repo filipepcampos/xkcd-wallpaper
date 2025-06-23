@@ -1,6 +1,6 @@
 use clap::Parser;
 use log::{info, warn};
-use xkcd::{download_comic, get_wallpaper_from_img, ForegroundColor, ScreenDimensions};
+use xkcd::{download_comic, get_wallpaper_from_comic, get_wallpaper_from_img, save_img_to_file, ForegroundColor, ScreenDimensions};
 
 #[derive(Parser)]
 #[command(
@@ -77,13 +77,12 @@ fn main() {
     };
 
     info!("starting comic download");
-    let filename = download_comic(cli.comic, &cli.output);
+    let comic_img = download_comic(cli.comic, &cli.output);
 
     info!("converting xkcd image into wallpaper");
-    let wallpaper_buffer = get_wallpaper_from_img(&filename, fg_color, cli.bg, screen_dimensions);
+    let wallpaper_img = get_wallpaper_from_comic(comic_img, fg_color, cli.bg, screen_dimensions);
 
-    info!("saving wallpaper to file {}", filename);
-    let _ = wallpaper_buffer.save(filename);
+    save_img_to_file(&wallpaper_img, &cli.output);
 }
 
 /// Parse a colour in “#RRGGBB”
