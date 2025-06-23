@@ -1,6 +1,7 @@
 use clap::Parser;
-use log::{info, warn};
-use xkcd::{download_comic, get_wallpaper_from_comic, get_wallpaper_from_img, save_img_to_file, ForegroundColor, ScreenDimensions};
+use log::info;
+use xkcd::{download_comic, get_wallpaper_from_comic, save_img_to_file, ForegroundColor, ScreenDimensions};
+
 
 #[derive(Parser)]
 #[command(
@@ -56,7 +57,7 @@ struct Cli {
         long,
         help = "Optional comic number, by default the latest xkcd will be used."
     )]
-    comic: Option<u32>, // TODO: Use this
+    comic: Option<u32>, 
     #[arg(short, long, default_value = "./%y-%m-%d_%t.png")]
     output: String,
 }
@@ -132,3 +133,4 @@ mod tests {
         assert_eq!(parse_hex_color(hex).is_err(), true);
     }
 }
+
