@@ -36,8 +36,7 @@ pub struct ScreenDimensions {
     pub height: u32,
 }
 
-/// Download a xkcd comic png (specific number or latest) to the file specified in output filename
-///
+/// Download a xkcd comic png (specific number or latest) and return a Image object
 pub fn download_comic(comic_number: Option<u32>) -> Image {
     let metadata = get_metadata(comic_number).expect("TODO"); // TODO:
 
@@ -54,6 +53,7 @@ pub fn download_comic(comic_number: Option<u32>) -> Image {
     Image { img, metadata }
 }
 
+/// Use a comic `Image` to obtain a wallpaper, returned as a `Image`.
 pub fn get_wallpaper_from_comic(
     comic_img: Image,
     fg_color: ForegroundColor,
@@ -169,4 +169,27 @@ fn convert_fmt_filename(format_filename: &str, metadata: &Metadata) -> String {
 
     info!("converted filename from {} to {}", format_filename, output);
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+    
+    #[rstest]
+    #[case("%y.png", "2025.png")]
+    #[case("output/file.png", "output/file.png")]
+    #[case("%y-%m-%d_%t", "2025-06-27_Some title")]
+    fn convert_filename_ok(#[case] input: &str, #[case] output: &str) {
+        let metadata = Metadata {
+            num: 42,
+            safe_title: "Some title".to_string(),
+            year: "2025".to_string(),
+            month: "06".to_string(),
+            day: "27".to_string(),
+            img: "https://example.com".to_string(),
+        };
+
+        assert_eq!(convert_fmt_filename(input, &metadata), output);
+    }
 }

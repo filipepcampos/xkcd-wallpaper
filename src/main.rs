@@ -105,30 +105,22 @@ fn parse_hex_color(s: &str) -> Result<image::Rgba<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn hex_parse_regular() {
-        let hex = "#FF0000";
-        let rgba = image::Rgba([255, 0, 0, 255]);
-        assert_eq!(parse_hex_color(hex), Ok(rgba));
+    #[rstest]
+    #[case("#FF0000", 255, 0, 0)]
+    #[case("FF0000", 255, 0, 0)]
+    #[case("#FF69B4", 255, 105, 180)]
+    fn hex_parse_ok(#[case] input: &str, #[case] r: u8, #[case] g: u8, #[case] b: u8) {
+        let rgba = image::Rgba([r, g, b, 255]);
+        assert_eq!(parse_hex_color(input), Ok(rgba));
     }
 
-    #[test]
-    fn hex_parse_missing_hash() {
-        let hex = "FF0000";
-        let rgba = image::Rgba([255, 0, 0, 255]);
-        assert_eq!(parse_hex_color(hex), Ok(rgba));
-    }
-
-    #[test]
-    fn hex_parse_malformed_color() {
-        let hex = "FF00";
-        assert_eq!(parse_hex_color(hex).is_err(), true);
-    }
-
-    #[test]
-    fn hex_parse_invalid_char() {
-        let hex = "ZZ0000";
-        assert_eq!(parse_hex_color(hex).is_err(), true);
+    #[rstest]
+    #[case("FF00")]
+    #[case("ZZ0000")]
+    #[case("")]
+    fn hex_parse_error(#[case] input: &str) {
+        assert!(parse_hex_color(input).is_err())
     }
 }
