@@ -48,7 +48,9 @@ xkcd-wallpaper \
 
 Original comic             |  Wallpaper |
 :-------------------------:|:-------------------------:|
-![Original commit](example/comic.png)  |  ![Wallpaper](example/wallpaper.png) |
+![Original commit](example/comic_1.png)  |  ![Wallpaper](example/wallpaper_1.png) |
+![Original commit](example/comic_2.png)  |  ![Wallpaper](example/wallpaper_2.png) |
+![Original commit](example/comic_3.png)  |  ![Wallpaper](example/wallpaper_3.png) |
 
 
 ## License
