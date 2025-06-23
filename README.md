@@ -1,5 +1,8 @@
 # xkcd-wallpaper
 
+[![MIT License](https://img.shields.io/github/license/filipepcampos/xkcd-wallpaper)](LICENSE)
+![Build status](https://img.shields.io/github/actions/workflow/status/filipepcampos/xkcd-wallpaper/rust.yml)
+
 Turn any XKCD comic into a wallpaper.
 
 Fetches a comic (latest or by number), lays it on a canvas, replaces the background with your chosen hex colour, and saves the finished image -- ready to set as your desktop background. This can be combined with a startup script to replace your wallpaper daily.
