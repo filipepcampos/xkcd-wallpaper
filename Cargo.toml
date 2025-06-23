@@ -1,6 +1,6 @@
 [package]
-name = "xkcd"
-version = "0.1.0"
+name = "xkcd-wallpaper"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
@@ -9,4 +9,5 @@ env_logger = "0.11.8"
 image = "0.25.6"
 log = "0.4.27"
 serde = { version = "1.0.219", features = ["derive"] }
+tempfile = "3.20.0"
 ureq = { version = "3.0.11", features = ["json"] }

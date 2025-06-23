@@ -1,6 +1,6 @@
 use clap::Parser;
 use log::info;
-use xkcd::{
+use xkcd_wallpaper::{
     download_comic, get_wallpaper_from_comic, save_img_to_file, ForegroundColor, ScreenDimensions,
 };
 
@@ -50,9 +50,7 @@ struct Cli {
         long,
         default_value = "light",
         help = "Foreground color, either dark or light"
-    )] // TODO:
-    // Stronger
-    // constraints
+    )] // TODO: Stronger constraints
     fg: String,
     #[arg(
         long,
@@ -79,7 +77,7 @@ fn main() {
     };
 
     info!("starting comic download");
-    let comic_img = download_comic(cli.comic, &cli.output);
+    let comic_img = download_comic(cli.comic);
 
     info!("converting xkcd image into wallpaper");
     let wallpaper_img = get_wallpaper_from_comic(comic_img, fg_color, cli.bg, screen_dimensions);

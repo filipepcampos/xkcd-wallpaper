@@ -38,12 +38,15 @@ pub struct ScreenDimensions {
 
 /// Download a xkcd comic png (specific number or latest) to the file specified in output filename
 ///
-pub fn download_comic(comic_number: Option<u32>, output_filename: &str) -> Image {
-    let metadata = get_metadata(comic_number).expect("TODO");
-    let filename = convert_fmt_filename(output_filename, &metadata);
-    // TODO: Use tmp file
-    download_img(&metadata.img, &filename).expect("Failed to download image from remote host.");
-    let img = ImageReader::open(&filename)
+pub fn download_comic(comic_number: Option<u32>) -> Image {
+    let metadata = get_metadata(comic_number).expect("TODO"); // TODO:
+
+    // NamedTempFile over tempfile because it requires .png suffix to be supported by ImageReader
+    let mut file = tempfile::NamedTempFile::with_suffix(".png").unwrap(); // TODO:
+    download_img(&metadata.img, file.as_file_mut())
+        .expect("Failed to download image from remote host.");
+
+    let img = ImageReader::open(file.path())
         .expect("Failed to open image.")
         .decode()
         .expect("Failed to decode img.");
@@ -128,8 +131,9 @@ fn get_metadata(comic_number: Option<u32>) -> Result<Metadata, ureq::Error> {
     Ok(recv_body)
 }
 
-fn download_img(original_url: &str, output_filename: &str) -> Result<(), ureq::Error> {
+fn download_img(original_url: &str, mut output_file: &File) -> Result<(), ureq::Error> {
     let scaled_url = original_url.replace(".png", "_2x.png");
+
     info!("downloading img {}", scaled_url);
     let mut response = match ureq::get(scaled_url).call() {
         Ok(res) => res,
@@ -144,23 +148,25 @@ fn download_img(original_url: &str, output_filename: &str) -> Result<(), ureq::E
 
     info!("reading response into BufReader");
     let mut reader = BufReader::new(response.body_mut().with_config().reader());
-    let mut file = File::create(output_filename).expect("Failed to create file.");
-    copy(&mut reader, &mut file).expect("Failed to save image.");
+    copy(&mut reader, &mut output_file).expect("Failed to save image.");
 
     Ok(())
 }
 
 fn convert_fmt_filename(format_filename: &str, metadata: &Metadata) -> String {
-    // TODO:
-    // cleanup
-    let mut output_filename = format_filename.replace("%y", &metadata.year.to_string());
-    output_filename = output_filename.replace("%m", &metadata.month.to_string());
-    output_filename = output_filename.replace("%d", &metadata.day.to_string());
-    output_filename = output_filename.replace("%t", &metadata.safe_title.to_string());
-    output_filename = output_filename.replace("%n", &metadata.num.to_string());
-    info!(
-        "converted filename from {} to {}",
-        format_filename, output_filename
-    );
-    output_filename
+    let replacements = [
+        ("%y", metadata.year.to_string()),
+        ("%m", metadata.month.to_string()),
+        ("%d", metadata.day.to_string()),
+        ("%t", metadata.safe_title.clone()),
+        ("%n", metadata.num.to_string()),
+    ];
+
+    let mut output = format_filename.to_owned();
+    for (token, value) in &replacements {
+        output = output.replace(token, value);
+    }
+
+    info!("converted filename from {} to {}", format_filename, output);
+    output
 }
