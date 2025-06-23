@@ -17,7 +17,7 @@ pub struct Metadata {
     pub year: String,
 }
 
-/// Wrapper for xkcd image which contains metadata 
+/// Wrapper for xkcd image which contains metadata
 pub struct Image {
     pub img: DynamicImage,
     pub metadata: Metadata,
