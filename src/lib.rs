@@ -61,7 +61,7 @@ pub fn get_wallpaper_from_comic(
     screen_dimensions: ScreenDimensions,
 ) -> Image {
     let metadata = comic_img.metadata;
-    let mut comic_img = comic_img.img.clone();
+    let mut comic_img = comic_img.img.to_owned();
 
     if fg_color == ForegroundColor::Light {
         info!("inverting image colors");
@@ -155,11 +155,11 @@ fn download_img(original_url: &str, mut output_file: &File) -> Result<(), ureq::
 
 fn convert_fmt_filename(format_filename: &str, metadata: &Metadata) -> String {
     let replacements = [
-        ("%y", metadata.year.to_string()),
-        ("%m", metadata.month.to_string()),
-        ("%d", metadata.day.to_string()),
-        ("%t", metadata.safe_title.clone()),
-        ("%n", metadata.num.to_string()),
+        ("%y", metadata.year.as_str()),
+        ("%m", metadata.month.as_str()),
+        ("%d", metadata.day.as_str()),
+        ("%t", metadata.safe_title.as_str()),
+        ("%n", &metadata.num.to_string()),
     ];
 
     let mut output = format_filename.to_owned();
