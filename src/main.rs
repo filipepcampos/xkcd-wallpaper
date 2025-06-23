@@ -1,31 +1,43 @@
 use clap::Parser;
 use log::{info, warn};
-use xkcd::{download_comic, get_wallpaper_from_img, FgColor, ScreenDimensions};
-
-// TODO: Write tests
-/// Parse a colour in “#RRGGBB”
-fn parse_hex_color(s: &str) -> Result<image::Rgba<u8>, String> {
-    let hex = s.trim_start_matches('#');
-    let full = match hex.len() {
-        6 => format!("{hex}FF"),
-        _ => return Err("Hex colour must be 6 hex digits (e.g. #1e90ff)".into()),
-    };
-    let v = u32::from_str_radix(&full, 16).map_err(|_| "Invalid hex digits")?;
-
-    Ok(image::Rgba([
-        ((v >> 24) & 0xFF) as u8, // R
-        ((v >> 16) & 0xFF) as u8, // G
-        ((v >> 8) & 0xFF) as u8,  // B
-        (v & 0xFF) as u8,         // A
-    ]))
-}
-
-// TODO Generic help text
+use xkcd::{download_comic, get_wallpaper_from_img, ForegroundColor, ScreenDimensions};
 
 #[derive(Parser)]
-#[command(version, about, long_about = None)]
+#[command(
+    version,
+    long_about,
+    after_help = "Examples:
+
+    Generate a 2560x1440 wallpaper from comic number 3084
+    with a dark green background and white colored drawings
+
+        xkcd-wallpaper \\
+            --width 2560 --height 1440 \\
+            --bg \"#1F241F\" \\
+            --fg light \\
+            --comic 3084
+
+    Generate a 1920x1080 wallpaper from the latest issue
+    with and write it to a specific output folder with
+    a Year-Month-Day-Title format, e.g. 2025-06-20-SomeTitle.
+
+        xkcd-wallpaper \\
+            --width 1920 --height 1080 \\
+            --output ./output/%y-%m-%d-%t
+
+Format string format:
+    You can use the following placeholders in the format string:
+        %y   Two-digit year (e.g., 25)
+        %m   Two-digit month (e.g., 06)
+        %d   Two-digit day (e.g., 22)
+        %n   Comic number
+        %t   Title   
+"
+)]
+/// Download xkcd wallpapers
+///
+/// To use simply call `xkcd-wallpaper --width 1920 --height 1080`
 struct Cli {
-    // Command-line interface to download and create wallpapers based on XKCD comics (xkcd.com).
     #[arg(long, help = "Width of output wallpaper")]
     width: u32,
     #[arg(long, help = "Height of output wallpaper")]
@@ -60,8 +72,8 @@ fn main() {
     };
 
     let fg_color = match cli.fg.as_str() {
-        "dark" => FgColor::Dark,
-        _ => FgColor::Light,
+        "dark" => ForegroundColor::Dark,
+        _ => ForegroundColor::Light,
     };
 
     info!("starting comic download");
@@ -72,4 +84,52 @@ fn main() {
 
     info!("saving wallpaper to file {}", filename);
     let _ = wallpaper_buffer.save(filename);
+}
+
+/// Parse a colour in “#RRGGBB”
+fn parse_hex_color(s: &str) -> Result<image::Rgba<u8>, String> {
+    let hex = s.trim_start_matches('#');
+    let full = match hex.len() {
+        6 => format!("{hex}FF"),
+        _ => return Err("Hex colour must be 6 hex digits (e.g. #1e90ff)".into()),
+    };
+    let v = u32::from_str_radix(&full, 16).map_err(|_| "Invalid hex digits")?;
+
+    Ok(image::Rgba([
+        ((v >> 24) & 0xFF) as u8, // R
+        ((v >> 16) & 0xFF) as u8, // G
+        ((v >> 8) & 0xFF) as u8,  // B
+        (v & 0xFF) as u8,         // A
+    ]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hex_parse_regular() {
+        let hex = "#FF0000";
+        let rgba = image::Rgba([255, 0, 0, 255]);
+        assert_eq!(parse_hex_color(hex), Ok(rgba));
+    }
+
+    #[test]
+    fn hex_parse_missing_hash() {
+        let hex = "FF0000";
+        let rgba = image::Rgba([255, 0, 0, 255]);
+        assert_eq!(parse_hex_color(hex), Ok(rgba));
+    }
+
+    #[test]
+    fn hex_parse_malformed_color() {
+        let hex = "FF00";
+        assert_eq!(parse_hex_color(hex).is_err(), true);
+    }
+
+    #[test]
+    fn hex_parse_invalid_char() {
+        let hex = "ZZ0000";
+        assert_eq!(parse_hex_color(hex).is_err(), true);
+    }
 }

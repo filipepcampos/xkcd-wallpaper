@@ -17,7 +17,7 @@ pub struct XkcdMetadata {
 }
 
 #[derive(PartialEq)]
-pub enum FgColor {
+pub enum ForegroundColor {
     Light,
     Dark,
 }
@@ -25,6 +25,70 @@ pub enum FgColor {
 pub struct ScreenDimensions {
     pub width: u32,
     pub height: u32,
+}
+
+/// Download a xkcd comic png (specific number or latest) to the file specified in output filename
+///
+/// # Filename placeholders
+/// The output filename can use placeholders which will be substituted with corresponding metadata
+/// ```
+/// %y   Two-digit year (e.g., 25)
+/// %m   Two-digit month (e.g., 06)
+/// %d   Two-digit day (e.g., 22)
+/// %n   Comic number
+/// %t   Title   
+/// ```
+/// For instance `./output/%y-%m-%d-%t` would generated a file `./output/2025-06-20-SomeTitle`.
+pub fn download_comic(comic_number: Option<u32>, output_filename: &str) -> String {
+    let metadata = get_metadata(comic_number).expect("TODO");
+    let filename = convert_fmt_filename(output_filename, &metadata);
+    download_img(&metadata.img, &filename).expect("Failed to download image from remote host.");
+
+    filename
+}
+
+pub fn get_wallpaper_from_img(
+    filename: &str,
+    fg_color: ForegroundColor,
+    bg_color: image::Rgba<u8>,
+    screen_dimensions: ScreenDimensions,
+) -> ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+    let mut comic_img = ImageReader::open(&filename)
+        .expect("Failed to open image.")
+        .decode()
+        .expect("Failed to decode img.");
+
+    if fg_color == ForegroundColor::Light {
+        info!("inverting image colors");
+        comic_img.invert();
+    }
+
+    let mut comic_buffer = comic_img.into_rgba8();
+
+    let comic_background_color = match fg_color {
+        ForegroundColor::Light => image::Rgba([0, 0, 0, 255]),
+        ForegroundColor::Dark => image::Rgba([255, 255, 255, 255]),
+    };
+
+    info!("replacing background pixels with background colors");
+    for (_x, _y, pixel) in comic_buffer.enumerate_pixels_mut() {
+        if *pixel == comic_background_color {
+            *pixel = bg_color;
+        }
+    }
+
+    // Place comic in the middle of the background buffer
+    info!("placing comic in center of the background");
+    let mut background_buffer =
+        ImageBuffer::from_pixel(screen_dimensions.width, screen_dimensions.height, bg_color);
+    overlay(
+        &mut background_buffer,
+        &comic_buffer,
+        (screen_dimensions.width / 2 - comic_buffer.width() / 2).into(),
+        (screen_dimensions.height / 2 - comic_buffer.height() / 2).into(),
+    );
+
+    background_buffer
 }
 
 fn get_metadata(comic_number: Option<u32>) -> Result<XkcdMetadata, ureq::Error> {
@@ -80,54 +144,3 @@ fn convert_fmt_filename(format_filename: &str, metadata: &XkcdMetadata) -> Strin
     output_filename
 }
 
-pub fn download_comic(comic_number: Option<u32>, output_filename: &str) -> String {
-    let metadata = get_metadata(comic_number).expect("TODO");
-    let filename = convert_fmt_filename(output_filename, &metadata);
-    download_img(&metadata.img, &filename).expect("Failed to download image from remote host.");
-
-    filename
-}
-
-pub fn get_wallpaper_from_img(
-    filename: &str,
-    fg_color: FgColor,
-    bg_color: image::Rgba<u8>,
-    screen_dimensions: ScreenDimensions,
-) -> ImageBuffer<image::Rgba<u8>, Vec<u8>> {
-    let mut comic_img = ImageReader::open(&filename)
-        .expect("Failed to open image.")
-        .decode()
-        .expect("Failed to decode img.");
-
-    if fg_color == FgColor::Light {
-        info!("inverting image colors");
-        comic_img.invert();
-    }
-
-    let mut comic_buffer = comic_img.into_rgba8();
-
-    let comic_background_color = match fg_color {
-        FgColor::Light => image::Rgba([0, 0, 0, 255]),
-        FgColor::Dark => image::Rgba([255, 255, 255, 255]),
-    };
-
-    info!("replacing background pixels with background colors");
-    for (_x, _y, pixel) in comic_buffer.enumerate_pixels_mut() {
-        if *pixel == comic_background_color {
-            *pixel = bg_color;
-        }
-    }
-
-    // Place comic in the middle of the background buffer
-    info!("placing comic in center of the background");
-    let mut background_buffer =
-        ImageBuffer::from_pixel(screen_dimensions.width, screen_dimensions.height, bg_color);
-    overlay(
-        &mut background_buffer,
-        &comic_buffer,
-        (screen_dimensions.width / 2 - comic_buffer.width() / 2).into(),
-        (screen_dimensions.height / 2 - comic_buffer.height() / 2).into(),
-    );
-
-    background_buffer
-}
