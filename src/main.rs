@@ -77,7 +77,13 @@ fn main() {
     };
 
     info!("starting comic download");
-    let comic_img = download_comic(cli.comic);
+    let comic_img = match download_comic(cli.comic) {
+        Ok(img) => img,
+        Err(e) => {
+            eprintln!("Failed to download comic: {e}");
+            std::process::exit(1);
+        }
+    };
 
     info!("converting xkcd image into wallpaper");
     let wallpaper_img = get_wallpaper_from_comic(comic_img, fg_color, cli.bg, screen_dimensions);

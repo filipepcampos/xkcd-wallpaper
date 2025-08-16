@@ -5,6 +5,7 @@ use image::imageops::overlay;
 use image::{DynamicImage, ImageBuffer, ImageReader};
 use log::{info, warn};
 use serde::Deserialize;
+use thiserror::Error;
 
 #[derive(Deserialize)]
 /// Metadata obtained through the xkcd API
@@ -36,21 +37,31 @@ pub struct ScreenDimensions {
     pub height: u32,
 }
 
+#[derive(Error, Debug)]
+pub enum XkcdError {
+    #[error("Network error: {0}")]
+    Network(#[from] ureq::Error),
+    #[error("Image error: {0}")]
+    Image(#[from] image::ImageError),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Tempfile error: {0}")]
+    Tempfile(#[from] tempfile::PersistError),
+    #[error("Other error: {0}")]
+    Other(String),
+}
+
 /// Download a xkcd comic png (specific number or latest) and return a Image object
-pub fn download_comic(comic_number: Option<u32>) -> Image {
-    let metadata = get_metadata(comic_number).expect("TODO"); // TODO:
+pub fn download_comic(comic_number: Option<u32>) -> Result<Image, XkcdError> {
+    let metadata = get_metadata(comic_number)?;
 
     // NamedTempFile over tempfile because it requires .png suffix to be supported by ImageReader
-    let mut file = tempfile::NamedTempFile::with_suffix(".png").unwrap(); // TODO:
-    download_img(&metadata.img, file.as_file_mut())
-        .expect("Failed to download image from remote host.");
+    let mut file = tempfile::NamedTempFile::with_suffix(".png")?;
+    download_img(&metadata.img, file.as_file_mut())?;
 
-    let img = ImageReader::open(file.path())
-        .expect("Failed to open image.")
-        .decode()
-        .expect("Failed to decode img.");
+    let img = ImageReader::open(file.path())?.decode()?;
 
-    Image { img, metadata }
+    Ok(Image { img, metadata })
 }
 
 /// Use a comic `Image` to obtain a wallpaper, returned as a `Image`.
@@ -115,7 +126,7 @@ pub fn save_img_to_file(img: &Image, filename: &str) {
     let _ = img.img.save(filename); // TODO: Shouldn't ignore output
 }
 
-fn get_metadata(comic_number: Option<u32>) -> Result<Metadata, ureq::Error> {
+fn get_metadata(comic_number: Option<u32>) -> Result<Metadata, XkcdError> {
     let metadata_url = match comic_number {
         Some(num) => format!("https://xkcd.com/{}/info.0.json", num),
         None => "https://xkcd.com/info.0.json".to_string(),
@@ -131,7 +142,7 @@ fn get_metadata(comic_number: Option<u32>) -> Result<Metadata, ureq::Error> {
     Ok(recv_body)
 }
 
-fn download_img(original_url: &str, mut output_file: &File) -> Result<(), ureq::Error> {
+fn download_img(original_url: &str, mut output_file: &File) -> Result<(), XkcdError> {
     let scaled_url = original_url.replace(".png", "_2x.png");
 
     info!("downloading img {}", scaled_url);
@@ -148,7 +159,7 @@ fn download_img(original_url: &str, mut output_file: &File) -> Result<(), ureq::
 
     info!("reading response into BufReader");
     let mut reader = BufReader::new(response.body_mut().with_config().reader());
-    copy(&mut reader, &mut output_file).expect("Failed to save image.");
+    copy(&mut reader, &mut output_file)?;
 
     Ok(())
 }
@@ -175,7 +186,7 @@ fn convert_fmt_filename(format_filename: &str, metadata: &Metadata) -> String {
 mod tests {
     use super::*;
     use rstest::rstest;
-    
+
     #[rstest]
     #[case("%y.png", "2025.png")]
     #[case("output/file.png", "output/file.png")]
