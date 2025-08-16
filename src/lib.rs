@@ -7,7 +7,7 @@ use log::{info, warn};
 use serde::Deserialize;
 use thiserror::Error;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 /// Metadata obtained through the xkcd API
 pub struct Metadata {
     pub num: u64,
@@ -18,19 +18,21 @@ pub struct Metadata {
     pub year: String,
 }
 
+#[derive(Debug)]
 /// Wrapper for xkcd image which contains metadata
 pub struct Image {
     pub img: DynamicImage,
     pub metadata: Metadata,
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 /// Foreground color for drawings, either light or dark
 pub enum ForegroundColor {
     Light,
     Dark,
 }
 
+#[derive(Debug)]
 /// Represents dimensions of a screen
 pub struct ScreenDimensions {
     pub width: u32,
@@ -65,6 +67,9 @@ pub fn download_comic(comic_number: Option<u32>) -> Result<Image, XkcdError> {
 }
 
 /// Use a comic `Image` to obtain a wallpaper, returned as a `Image`.
+/// Requires a foreground color, which will determine if the drawing lines are light or dark;
+/// and a background color which is any RGBA value of the user's choice.
+/// If the screen dimensions are too small the picture may be cropped or not visible at all.
 pub fn get_wallpaper_from_comic(
     comic_img: Image,
     fg_color: ForegroundColor,

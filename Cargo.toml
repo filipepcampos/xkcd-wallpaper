@@ -1,7 +1,14 @@
 [package]
 name = "xkcd-wallpaper"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
+license = "MIT"
+description = ""
+repository = ""
+readme = "README.md"
+keywords = ["xkcd", "wallpaper"]
+categories = ["command-line-utilities", "multimedia::images"]
+
 
 [dependencies]
 clap = { version = "4.5.37", features = ["derive"] }
