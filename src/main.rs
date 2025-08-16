@@ -1,8 +1,6 @@
 use clap::Parser;
 use log::info;
-use xkcd_wallpaper::{
-    download_comic, get_wallpaper_from_comic, save_img_to_file, ForegroundColor, ScreenDimensions,
-};
+use xkcd_wallpaper::{get_wallpaper_from_comic, ForegroundColor, Metadata, ScreenDimensions};
 
 #[derive(Parser)]
 #[command(
@@ -47,11 +45,13 @@ struct Cli {
     #[arg(long, value_parser=parse_hex_color, default_value = "#1F241F", help="Background color in HEX format")]
     bg: image::Rgba<u8>,
     #[arg(
+        short,
         long,
-        default_value = "light",
+        default_value_t,
+        value_enum,
         help = "Foreground color, either dark or light"
-    )] // TODO: Stronger constraints
-    fg: String,
+    )]
+    fg: ForegroundColor,
     #[arg(
         long,
         help = "Optional comic number, by default the latest xkcd will be used."
@@ -71,24 +71,14 @@ fn main() {
         height: cli.height,
     };
 
-    let fg_color = match cli.fg.as_str() {
-        "dark" => ForegroundColor::Dark,
-        _ => ForegroundColor::Light,
-    };
-
     info!("starting comic download");
-    let comic_img = match download_comic(cli.comic) {
-        Ok(img) => img,
-        Err(e) => {
-            eprintln!("Failed to download comic: {e}");
-            std::process::exit(1);
-        }
-    };
+    let comic_img = Metadata::from_comic_id(cli.comic)
+        .expect("Failed to download metadata")
+        .to_image()
+        .expect("Failed to convert metadata to image.");
 
     info!("converting xkcd image into wallpaper");
-    let wallpaper_img = get_wallpaper_from_comic(comic_img, fg_color, cli.bg, screen_dimensions);
-
-    save_img_to_file(&wallpaper_img, &cli.output);
+    get_wallpaper_from_comic(comic_img, cli.fg, cli.bg, screen_dimensions).save(&cli.output);
 }
 
 /// Parse a colour in “#RRGGBB”

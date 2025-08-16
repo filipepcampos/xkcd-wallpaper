@@ -4,30 +4,13 @@ use std::io::{copy, BufReader};
 use image::imageops::overlay;
 use image::{DynamicImage, ImageBuffer, ImageReader};
 use log::{info, warn};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, Deserialize)]
-/// Metadata obtained through the xkcd API
-pub struct Metadata {
-    pub num: u64,
-    pub safe_title: String,
-    pub img: String,
-    pub day: String,
-    pub month: String,
-    pub year: String,
-}
-
-#[derive(Debug)]
-/// Wrapper for xkcd image which contains metadata
-pub struct Image {
-    pub img: DynamicImage,
-    pub metadata: Metadata,
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, clap::ValueEnum, Serialize)]
 /// Foreground color for drawings, either light or dark
 pub enum ForegroundColor {
+    #[default]
     Light,
     Dark,
 }
@@ -53,29 +36,94 @@ pub enum XkcdError {
     Other(String),
 }
 
-/// Download a xkcd comic png (specific number or latest) and return a Image object
-pub fn download_comic(comic_number: Option<u32>) -> Result<Image, XkcdError> {
-    let metadata = get_metadata(comic_number)?;
+#[derive(Clone, Debug, Deserialize)]
+/// Metadata obtained through the xkcd API
+pub struct Metadata {
+    pub num: u64,
+    pub safe_title: String,
+    pub img: String,
+    pub day: String,
+    pub month: String,
+    pub year: String,
+}
 
-    // NamedTempFile over tempfile because it requires .png suffix to be supported by ImageReader
-    let mut file = tempfile::NamedTempFile::with_suffix(".png")?;
-    download_img(&metadata.img, file.as_file_mut())?;
+impl Metadata {
+    pub fn from_comic_id(comic_number: Option<u32>) -> Result<Metadata, XkcdError> {
+        let metadata_url = match comic_number {
+            Some(num) => format!("https://xkcd.com/{}/info.0.json", num),
+            None => "https://xkcd.com/info.0.json".to_string(),
+        };
+        info!("downloading metadata from url {}", metadata_url);
 
-    let img = ImageReader::open(file.path())?.decode()?;
+        let recv_body = ureq::get(metadata_url)
+            .call()?
+            .body_mut()
+            .read_json::<Metadata>()?;
+        info!("metadata downloaded successfully");
 
-    Ok(Image { img, metadata })
+        Ok(recv_body)
+    }
+
+    pub fn to_image(&self) -> Result<ComicImage, XkcdError> {
+        // NamedTempFile over tempfile because it requires .png suffix to be supported by ImageReader
+        let mut file = tempfile::NamedTempFile::with_suffix(".png")?;
+        download_img(&self.img, file.as_file_mut())?;
+
+        let img = ImageReader::open(file.path())?.decode()?;
+
+        Ok(ComicImage {
+            img,
+            metadata: self.clone(),
+        })
+    }
+}
+
+#[derive(Debug)]
+/// Wrapper for xkcd image which contains metadata
+pub struct Image {
+    pub img: DynamicImage,
+    pub metadata: Metadata,
+}
+type ComicImage = Image;
+type WallpaperImage = Image;
+
+impl Image {
+    /// Save `Image` to a specific output file, supports placeholders.
+    ///
+    /// # Filename placeholders
+    /// The output filename can use placeholders which will be substituted with corresponding metadata
+    ///
+    /// y   Two-digit year (e.g., 25)
+    /// m   Two-digit month (e.g., 06)
+    /// d   Two-digit day (e.g., 22)
+    /// n   Comic number
+    /// t   Title   
+    /// For instance `./output/%y-%m-%d-%t` would generated a file `./output/2025-06-20-SomeTitle`.
+    pub fn save(&self, filename: &str) {
+        let filename = convert_fmt_filename(filename, &self.metadata);
+        let _ = self.img.save(filename);
+    }
+}
+
+impl ComicImage {
+    pub fn from_metadata(metadata: Metadata) -> Result<Self, XkcdError> {
+        // NamedTempFile over tempfile because it requires .png suffix to be supported by ImageReader
+        let mut file = tempfile::NamedTempFile::with_suffix(".png")?;
+        download_img(&metadata.img, file.as_file_mut())?;
+
+        let img = ImageReader::open(file.path())?.decode()?;
+
+        Ok(WallpaperImage { img, metadata })
+    }
 }
 
 /// Use a comic `Image` to obtain a wallpaper, returned as a `Image`.
-/// Requires a foreground color, which will determine if the drawing lines are light or dark;
-/// and a background color which is any RGBA value of the user's choice.
-/// If the screen dimensions are too small the picture may be cropped or not visible at all.
 pub fn get_wallpaper_from_comic(
-    comic_img: Image,
+    comic_img: ComicImage,
     fg_color: ForegroundColor,
     bg_color: image::Rgba<u8>,
     screen_dimensions: ScreenDimensions,
-) -> Image {
+) -> WallpaperImage {
     let metadata = comic_img.metadata;
     let mut comic_img = comic_img.img.to_owned();
 
@@ -109,42 +157,10 @@ pub fn get_wallpaper_from_comic(
         (screen_dimensions.height / 2 - comic_buffer.height() / 2).into(),
     );
 
-    Image {
+    WallpaperImage {
         img: DynamicImage::ImageRgba8(background_buffer),
         metadata,
     }
-}
-
-/// Save `Image` to a specific output file, supports placeholders.
-///
-/// # Filename placeholders
-/// The output filename can use placeholders which will be substituted with corresponding metadata
-///
-/// y   Two-digit year (e.g., 25)
-/// m   Two-digit month (e.g., 06)
-/// d   Two-digit day (e.g., 22)
-/// n   Comic number
-/// t   Title   
-/// For instance `./output/%y-%m-%d-%t` would generated a file `./output/2025-06-20-SomeTitle`.
-pub fn save_img_to_file(img: &Image, filename: &str) {
-    let filename = convert_fmt_filename(filename, &img.metadata);
-    let _ = img.img.save(filename); // TODO: Shouldn't ignore output
-}
-
-fn get_metadata(comic_number: Option<u32>) -> Result<Metadata, XkcdError> {
-    let metadata_url = match comic_number {
-        Some(num) => format!("https://xkcd.com/{}/info.0.json", num),
-        None => "https://xkcd.com/info.0.json".to_string(),
-    };
-    info!("downloading metadata from url {}", metadata_url);
-
-    let recv_body = ureq::get(metadata_url)
-        .call()?
-        .body_mut()
-        .read_json::<Metadata>()?;
-    info!("metadata downloaded successfully");
-
-    Ok(recv_body)
 }
 
 fn download_img(original_url: &str, mut output_file: &File) -> Result<(), XkcdError> {
