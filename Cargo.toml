@@ -8,6 +8,9 @@ repository = "https://github.com/filipepcampos/xkcd-wallpaper"
 readme = "README.md"
 keywords = ["xkcd", "wallpaper"]
 categories = ["command-line-utilities", "multimedia::images"]
+exclude = [
+    "assets/*",
+]
 
 
 [dependencies]
