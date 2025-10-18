@@ -10,9 +10,7 @@ Fetches a comic (latest or by number), lays it on a canvas, replaces the backgro
 
 ## Install
 
-### Stable release (planned)
-> [!CAUTION]
-> This is planned for the future, as of this moment, this is still not possible
+### Release
 
 ```bash
 cargo install xkcd-wallpaper
